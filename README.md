@@ -1,4 +1,4 @@
-# leekwars-python-ais
+# leekwars-py-toolkit
 
 IA Leek Wars en Python (GraalPy 3.12, API objet), avec autocomplétion et vérification de types dans l'IDE.
 
@@ -32,3 +32,8 @@ et une fiche par arme / puce (`Weapon.pistol`, `Chip.bandage` : coût, portée, 
 ```sh
 tools/fetch_sources.sh && python3 tools/gen_stub.py && npx pyright && uvx ruff check .
 ```
+
+## Licence
+
+MIT pour l'outillage de ce dépôt. `vendor/client/` reprend des fichiers du client Leek Wars (GPL-3.0) ; les données
+et docs dans `data/` proviennent de leekwars.com et restent la propriété de Leek Wars.

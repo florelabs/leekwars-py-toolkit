@@ -1,4 +1,4 @@
-# leekwars-python-ais
+# leekwars-py-toolkit
 
 IA Leek Wars écrites en Python (GraalPy 3.12, API **objet** : `Fight.me`, `Weapon.pistol`, pas de fonctions ni
 constantes plates, pas de global `me`). Objectif du dépôt : sparring technique sur les algos + autocomplétion IDE.
