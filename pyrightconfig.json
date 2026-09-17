@@ -1,0 +1,23 @@
+{
+  "include": [
+    "ais",
+    "examples"
+  ],
+  "exclude": [
+    "vendor",
+    "tools",
+    "data"
+  ],
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Linux",
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": false,
+  "reportMissingImports": "error",
+  "reportUndefinedVariable": "error",
+  "reportSelfClsParameterName": "none",
+  "reportMissingModuleSource": "none",
+  "extraPaths": [
+    "ais",
+    "examples"
+  ]
+}

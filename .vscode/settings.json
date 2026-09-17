@@ -1,0 +1,6 @@
+{
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.extraPaths": ["ais", "examples"],
+  "python.analysis.exclude": ["vendor", "tools", "data"],
+  "files.associations": { "*.pyi": "python" }
+}

@@ -1,0 +1,22 @@
+# Ruff (lint + format dans VS Code). Ruff ne lit PAS __builtins__.pyi (convention Pyright) : les globales de
+# l'API de combat sont déclarées ici. La ligne `builtins` est régénérée par tools/gen_stub.py.
+target-version = "py312"
+line-length = 120
+extend-exclude = ["vendor", "data", "tools"]
+
+# <builtins>
+builtins = ["Cell", "Entity", "Weapon", "Chip", "Item", "Effect", "Feature", "Message", "Me", "Leek", "Turret", "Bulb", "Chest", "Mob", "Plant", "State", "CellLike", "EntityLike", "WeaponLike", "ChipLike", "Registers", "Fight", "Field", "Network", "Debug", "System", "Color", "Math"]
+# </builtins>
+
+[lint]
+select = ["E4", "E7", "E9", "F", "UP", "B", "I", "SIM", "PERF", "RUF"]
+ignore = [
+  "E731",   # lambda assignée : fréquent dans une IA (fonctions de score)
+  "RUF001", "RUF002", "RUF003",  # caractères unicode dans les chaînes / commentaires FR (« », …)
+]
+
+[lint.per-file-ignores]
+"__builtins__.pyi" = ["ALL"]
+
+[format]
+exclude = ["__builtins__.pyi", "docs/*.md"]  # fichiers générés / doc officielle : pas à reformater
