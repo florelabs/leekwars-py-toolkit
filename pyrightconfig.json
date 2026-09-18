@@ -1,7 +1,9 @@
 {
   "include": [
     "ais",
-    "examples"
+    "examples",
+    "bot",
+    "tests"
   ],
   "exclude": [
     "vendor",
@@ -18,6 +20,8 @@
   "reportMissingModuleSource": "none",
   "extraPaths": [
     "ais",
-    "examples"
+    "examples",
+    "bot",
+    "tests"
   ]
 }

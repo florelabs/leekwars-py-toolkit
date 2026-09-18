@@ -19,6 +19,8 @@ et une fiche par arme / puce (`Weapon.pistol`, `Chip.bandage` : coût, portée, 
 
 - `ais/` — tes IA (ignoré par git).
 - `examples/` — IA d'exemple (`example.py` + `helpers.py`), aussi test du stub.
+- `bot/` — planificateur de tour (map de danger, arrêts, sac à dos de PT, téléportation) : `planner_ai.py` est
+  l'IA d'entrée, `docs/planner.md` la conception ; `tests/` le teste hors moteur (`uvx pytest tests`).
 - `docs/runtime.md` — modèle d'exécution, budgets, pièges (à lire avant d'écrire un algo).
 - `docs/api_reference.md` — référence de l'API objet, générée.
 - `docs/python_encyclopedia.md` — l'article officiel « Python ».

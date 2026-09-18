@@ -17,6 +17,11 @@ constantes plates, pas de global `me`). Objectif du dépôt : sparring technique
 `__builtins__.pyi`, `docs/api_reference.md`, `data/*` : `tools/fetch_sources.sh && python3 tools/gen_stub.py`.
 Les docstrings ajoutées viennent de `tools/gen_stub.py` (`EXTRA_DOC`, `NULLABLE`) : c'est là qu'on corrige un texte.
 
+## Planificateur (`bot/`)
+`docs/planner.md` explique l'architecture (snapshot → danger → plan → exécution). Seuls `world.py` et
+`executor.py` touchent l'API ; le reste se teste avec `uvx pytest tests` sur des grilles ASCII. Pas de module
+nommé comme un module stdlib (`profile`, `random`...) : la stdlib prime sur les fichiers de l'IA.
+
 ## Conventions
 - Les IA perso vivent dans `ais/` (gitignoré) ; `examples/` contient l'IA de démo versionnée qui sert de test du stub.
   Un fichier = une IA ou un module (`import` natif, noms sans tirets, pas de cycles).

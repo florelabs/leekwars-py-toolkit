@@ -46,6 +46,9 @@ la référence membre par membre dans `api_reference.md`.
   C'est voulu côté éditeur (éviter des faux positifs Pyright) : garde tes `if x is None`.
 - Arguments souples : partout où l'API attend une cellule / entité / arme / puce, elle accepte **l'objet ou son id**
   (`CellLike = Cell | Entity | int` : passer une entité là où on attend une cellule = sa cellule).
+  **Exception** : `me.moveToward(x)` / `moveAwayFrom(x)` avec un `int` le traitent comme un id d'**entité**
+  (`F.moveToward`) ; pour viser une case par id, passer `Cell.get(id)` (→ `moveTowardCell`). Sinon aucun
+  déplacement, sans erreur.
 - Helpers de ciblage (`weaponCell(s)`, `chipCell(s)`, `weaponTargets`, `chipTargets`) vivent sur `Fight` et sont
   aliasés sur `me` ; cible d'abord, arme optionnelle ensuite (ordre inverse toléré). Cible entité OU cellule
   (routage automatique vers `getCellToUseWeapon` / `...OnCell`). L'arme par défaut = celle équipée.

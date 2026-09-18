@@ -1,8 +1,2 @@
-# IA personnelles (le dépôt publie l'outillage, pas les IA)
-ais/
-# copies de sources amont sans licence explicite (leek-wars-generator) : tools/fetch_sources.sh les re-télécharge
-vendor/generator/
-__pycache__/
-.ruff_cache/
-node_modules/
-.DS_Store
+bot/
+__pycache__
