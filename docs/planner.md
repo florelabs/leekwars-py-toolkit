@@ -72,6 +72,37 @@ science) : celui qui synergise le mieux avec les attaques du tour est un *contex
 autres sont des options valant `engage(fin) × Δalpha × tours futurs décotés` — Wizardry passe avant un
 troisième mur quand on joue poison.
 
+**Létal.** `lethal_check` : dégâts attendus sur la case finale × Π(1 − relatifs posés ce tour) − absolus ×
+coups, comparés à `lethal_margin × PV après soins`. Létal → `− w_death`. Si des boucliers/soins peuvent
+l'éviter, *passe de survie* : ils sont revalorisés avec un crédit `w_death / exposition` par PV absorbé et le
+sac à dos est relancé ; on garde la meilleure des deux allocations (score avec malus). Le raffinement LOS
+refait le test (une cachette lève le malus). Côté offensif, un kill vaut `w_kill + alpha(e) × tours futurs`.
+
+**Alliés.** Les skills de support (soin, boucliers, buffs de stat) forment un groupe par skill dont les
+options sont « sur moi » (case finale connue) et « sur l'allié a depuis l'arrêt i » (portée + LOS, masque de
+cibles `Effect.Target.*` lu sur l'effet). Valeur sur un allié : ses PV manquants, `Danger.danger_vs(a)`
+(champs de distance ennemis réutilisés, sac à dos de dégâts recalculé contre SES boucliers), ou
+`engage × Δalpha(a)`, × `w_ally` × `ally_weights[nom]`, avec crédit `w_death` s'il peut mourir. Les cases
+d'où un support atteint un allié sont des arrêts candidats (`waypoints`), au même titre que les cases de
+tir. *Menace d'équipe* `threat(e)` = max(alpha de e sur moi, alpha sur chaque allié × son poids) : c'est elle
+qui pondère le bonus de kill et la priorisation. Une entrave ou un kill rapporte aussi `w_safety × Σ_a w_a ×
+(danger_vs(a) avant − après)` : le danger retiré aux alliés compte comme le mien. Pas encore : position pour
+couper une LOS ennemie vers un allié.
+
+**Canal (`team.py`).** Après son tour, chaque leek publie (`executor.announce`, `Network.sendAll`, type
+CUSTOM, JSON `{t, f, e}`) sa cible principale et s'il a *engagé* (un kill, ou un plan valant ≥ `engage_share`
+de son alpha). Au snapshot, les rapports des alliés (≤ 1 tour) donnent `team.focus` (× `w_team_focus`) et
+`team.engaged` → `engage() = 1` partout : le combat est lancé, on se buffe et on presse. Qui engage en
+premier : le premier dans l'ordre de jeu dont le planner trouve une frappe qui vaut le coup — typiquement
+la téléportation vers une cible commode, que le score trouve seul. Les poisons ne passent pas par le canal :
+`Ent.poison_load` (Σ valeur × tours des poisons actifs, lu sur `enemy.effects`) décote un poison
+supplémentaire (× `w_poison_overflow`) au-delà de `poison_cap` × PV de la cible — un antidote effacerait tout.
+
+**Priorisation de cible** (`target_weights`, une fois par tour) : la valeur des dégâts sur `e` est
+multipliée par `(1 + w_threat × alpha(e)/alpha max) × w_summon si invocation × w_finish si vie ≤ mon alpha
+× w_focus si cible principale du tour précédent`, puis par `(1 + w_low_life × (1 − vie/max))`. La cible
+principale est mémorisée dans `planner.focus` (globale : survit au tour).
+
 **Cachettes.** `w_cover` (PV par obstacle à distance ≤ 2) oriente le repli vers les cases adossées à un
 obstacle. Puis, sur les `refine_plans` meilleurs plans, `Danger.refined()` recalcule le danger de la case
 finale et de `refine_cells` cases couvertes atteignables avec la **vraie LOS** depuis toutes les cases que
@@ -91,6 +122,20 @@ en `debug=True`.
 1. Zones d'effet (viser une case vide pour toucher sans LOS) : un objectif `AoE(e)` dont les cases cibles
    sont le rayon d'aire autour de l'ennemi ; `effectiveArea` (78 ops) seulement sur le top-K.
 2. Répartition d'un skill sur plusieurs arrêts (pistolet 2× ici, 2× là).
-3. Checks létaux : « je peux le tuer ce tour → `w_safety = 0` », « il peut me tuer depuis c → danger ∞ ».
-4. Types de lancer LINE/DIAGONAL dans la map de danger (la LOS est faite, sur les finalistes).
-5. Alliés (objectif `Protect`, `w_ally`), invocations, grappin/gant de boxe (déplacent l'ennemi = contexte).
+3. Types de lancer LINE/DIAGONAL dans la map de danger (la LOS est faite, sur les finalistes).
+4. Invocations (cf ci-dessous), grappin/gant de boxe (déplacent l'ennemi = contexte), position pour couper
+   une LOS vers un allié.
+
+## Invocations : comment ça rentrerait
+
+- **Le bulbe joue avec le même planner.** Pendant son tour, `Fight.me` EST le bulbe : `snapshot()` lit ses
+  puces (`bulbChips`) et ses stats, `Planner` planifie, `execute` agit. Le callback passé à `me.summon` est
+  donc `turn()` avec un `Profile` léger. Contrainte forte : **le tour du bulbe consomme MON budget d'ops**
+  (même compteur, cf runtime.md) → `max_stops=1`, `refine_plans=0`, `budget` réduit pour lui.
+- **Décider d'invoquer** = un skill structurel `SUMMON` (effet 14), comme un buff : valeur = contribution
+  attendue du bulbe (`alpha_of` d'un `Ent` fabriqué depuis `bulbStats` + `bulbChips`, ou capacité de soin)
+  × tours futurs décotés, moins son coût en PT ; contexte « avec invocation » évalué comme les autres.
+- **Où le poser** : mini-objectif sur les cases à portée de la puce — pour un bulbe de dégâts,
+  `pression(c) − danger(c)` calculés avec SES portées ; pour un soigneur, près des alliés (danger_vs).
+- Une fois posé, c'est un allié (`summoned=True`) : `ally_weights` (0.3 pour un bulbe), support, menace
+  d'équipe. Limites : `SUMMON_LIMIT = 8`, `summon` = 1 750 ops, cooldown de la puce.

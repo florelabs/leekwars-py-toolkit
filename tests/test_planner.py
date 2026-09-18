@@ -1,7 +1,7 @@
 from danger import Danger
 from planner import Planner
 from scenario import PISTOL, cell, leek, open_grid, world
-from skills import BUFF_MP, DAMAGE, HEAL, SHACKLE_MP, TELEPORT, make
+from skills import BUFF_MP, DAMAGE, HEAL, POISON, SHACKLE_MP, TELEPORT, make
 from tuning import Profile
 
 TELEPORT_CHIP = make("c:teleportation", TELEPORT, cost=9, min_range=1, max_range=12, min_v=0, max_v=0, los=False)
@@ -208,3 +208,154 @@ def test_hit_and_hide_behind_obstacle():
     assert sum(a.n for a in plan.actions if a.kind == "weapon") == 4
     assert plan.danger == 0.0
     assert not w.los(enemy.cell, plan.end_cell)
+
+
+def test_target_weights_prefer_threat_and_persist_focus():
+    import planner as planner_mod
+    g = open_grid(20, 5)
+    me = leek(1, cell(g, 4, 2))
+    weak = leek(2, cell(g, 8, 1), tp=3, mp=3, strength=0, enemy=True)  # 1 tir de pistolet, force 0
+    strong = leek(3, cell(g, 8, 3), tp=12, mp=3, strength=300, enemy=True)  # 4 tirs, force 300
+    planner_mod.focus["target"] = None
+    pl = Planner(world(g, me, [weak, strong]), Profile())
+    assert pl.target_w[3] > pl.target_w[2]
+    pl.plan()
+    assert planner_mod.focus["target"] == 3
+    # Persistance : au tour suivant, le focus multiplie encore la cible précédente.
+    pl2 = Planner(world(g, me, [weak, strong]), Profile())
+    assert pl2.target_w[3] > pl.target_w[3]
+    planner_mod.focus["target"] = None
+
+
+def test_summons_are_deprioritized_unless_finishable():
+    g = open_grid(20, 5)
+    me = leek(1, cell(g, 4, 2))
+    bulb = leek(2, cell(g, 8, 2), life=1000, tp=6, mp=3, enemy=True, summoned=True)
+    leek_e = leek(3, cell(g, 8, 4), life=1000, tp=6, mp=3, enemy=True)
+    pl = Planner(world(g, me, [bulb, leek_e]), Profile())
+    assert pl.target_w[2] < pl.target_w[3]
+    dying_bulb = leek(2, cell(g, 8, 2), life=30, tp=6, mp=3, enemy=True, summoned=True)
+    pl = Planner(world(g, me, [dying_bulb, leek_e]), Profile())
+    assert pl.target_w[2] > Profile().w_summon  # finissable : bonus w_finish
+
+
+def test_survival_pass_trades_damage_for_a_shield_when_lethal():
+    # 11 PT : deux magnums (260 de valeur) ou magnum + mur. L'ennemi peut m'infliger 300 pour 300 PV :
+    # létal sans mur (300 ≥ 0.8 × 300), pas avec (300 × 0.7 = 210 < 240). La passe de survie doit préférer le mur.
+    from skills import REL_SHIELD
+    g = open_grid(12, 3)
+    magnum = make("w:magnum", DAMAGE, cost=5, min_range=1, max_range=8, min_v=25, max_v=40, max_uses=2, is_weapon=True)
+    wall = make("c:wall", REL_SHIELD, cost=3, min_range=0, max_range=0, min_v=30, max_v=30, turns=2)
+    me = leek(1, cell(g, 2, 1), life=300, tp=11, mp=0, strength=300, skills=[magnum, wall])
+    me.weapon_key = "w:magnum"
+    sniper = make("w:sniper", DAMAGE, cost=5, min_range=1, max_range=12, min_v=150, max_v=150, max_uses=2,
+                  is_weapon=True)
+    enemy = leek(2, cell(g, 8, 1), tp=10, mp=3, strength=0, agility=0, enemy=True, skills=[sniper])
+    no_lethal = Planner(world(g, me, [enemy]), Profile(w_death=0.0)).plan()
+    assert sum(a.n for a in no_lethal.actions if a.kind == "weapon") == 2
+    assert no_lethal.lethal
+    plan = Planner(world(g, me, [enemy]), Profile()).plan()
+    assert ("chip", "c:wall", 1) in kinds(plan)
+    assert not plan.lethal
+    assert sum(a.n for a in plan.actions if a.kind == "weapon") == 1
+
+
+def test_lethal_cell_is_avoided_when_a_safe_one_exists():
+    # Ennemi lent à courte portée mais létal : après avoir tiré, sortir de sa zone est obligatoire.
+    g = open_grid(20, 3)
+    me = leek(1, cell(g, 9, 1), life=200, mp=6)
+    knife = make("w:knife", DAMAGE, cost=4, min_range=1, max_range=3, min_v=100, max_v=100, max_uses=2, is_weapon=True)
+    enemy = leek(2, cell(g, 12, 1), tp=10, mp=2, strength=0, agility=0, enemy=True, skills=[knife])
+    plan = Planner(world(g, me, [enemy]), Profile(max_stops=1)).plan()
+    assert not plan.lethal and plan.danger == 0.0
+    assert any(a.kind == "weapon" for a in plan.actions)
+
+
+def _ally_scenario(ally_weights=None):
+    from skills import ABS_SHIELD
+    g = open_grid(20, 5)
+    helmet = make("c:helmet", ABS_SHIELD, cost=3, min_range=0, max_range=4, min_v=40, max_v=40, turns=2)
+    me = leek(1, cell(g, 2, 2), mp=6, skills=[PISTOL, BANDAGE, helmet])
+    ally = leek(5, cell(g, 10, 2), life=200, max_life=1000, tp=10, mp=3, enemy=False)
+    ally.name = "carry"
+    sniper = make("w:sniper", DAMAGE, cost=5, min_range=1, max_range=12, min_v=150, max_v=150, max_uses=2,
+                  is_weapon=True)
+    enemy = leek(2, cell(g, 18, 2), tp=10, mp=0, strength=0, agility=0, enemy=True, skills=[sniper])
+    w = world(g, me, [enemy])
+    w.allies = [ally]
+    w.blocked[ally.cell] = True
+    return g, w, ally, Profile(ally_weights=ally_weights or {})
+
+
+def test_support_moves_to_heal_and_shield_endangered_ally():
+    g, w, ally, prof = _ally_scenario()
+    plan = Planner(w, prof).plan()
+    on_ally = {a.skill.key for a in plan.actions if a.kind == "chip" and a.target == ally.id and a.skill}
+    assert on_ally == {"c:bandage", "c:helmet"}
+    moves = [a.cell for a in plan.actions if a.kind == "move" and a.cell is not None]
+    assert moves and g.dist(moves[0], ally.cell) <= 4  # à portée du casque
+
+
+def test_ally_weight_zero_disables_support():
+    _g, w, ally, prof = _ally_scenario({"carry": 0.0})
+    plan = Planner(w, prof).plan()
+    assert not any(a.target == ally.id for a in plan.actions if a.kind == "chip")
+
+
+def test_team_threat_counts_squishy_ally():
+    g = open_grid(20, 5)
+    me = leek(1, cell(g, 2, 2), abs_shield=200)  # blindé : l'ennemi ne me fait presque rien
+    ally = leek(5, cell(g, 10, 2), life=500, tp=10, mp=3, enemy=False)
+    enemy = leek(2, cell(g, 18, 2), tp=10, mp=3, enemy=True)
+    w = world(g, me, [enemy])
+    w.allies = [ally]
+    pl = Planner(w, Profile())
+    assert pl.d.alpha(enemy) < 10
+    assert pl.threat(enemy) > 100
+
+
+def test_shackle_cast_to_relieve_ally():
+    # Je suis hors d'atteinte (distance 6 > zone 2 PM + 3 de portée) mais à portée d'entrave ; l'allié est
+    # dans la zone (distance 5). Une entrave −3 PM le met hors d'atteinte : valeur = son danger.
+    g = open_grid(24, 3)
+    me = leek(1, cell(g, 7, 1), mp=0, skills=[CHAIN])
+    ally = leek(5, cell(g, 9, 0), life=400, tp=10, mp=0, enemy=False)  # hors de ma ligne de vue
+    knife = make("w:knife", DAMAGE, cost=4, min_range=1, max_range=3, min_v=80, max_v=80, max_uses=2, is_weapon=True)
+    enemy = leek(2, cell(g, 13, 1), tp=10, mp=2, strength=0, agility=0, enemy=True, skills=[knife])
+    w = world(g, me, [enemy])
+    assert not any(a.kind == "chip" for a in Planner(w, Profile()).plan().actions)
+    w.allies = [ally]
+    w.blocked[ally.cell] = True
+    plan = Planner(w, Profile()).plan()
+    assert ("chip", "c:chain", 1) in kinds(plan)
+
+
+def test_team_channel_focus_and_forced_engage():
+    from team import TeamState
+    g = open_grid(30, 3)
+    me = leek(1, cell(g, 0, 1), mp=3, skills=[PISTOL])
+    e1 = leek(2, cell(g, 20, 1), tp=10, mp=3, enemy=True)
+    e2 = leek(3, cell(g, 20, 0), tp=10, mp=3, enemy=True)
+    ally = leek(5, cell(g, 4, 1), enemy=False)
+    w = world(g, me, [e1, e2])
+    w.allies = [ally]
+    team = TeamState(turn=3)
+    team.add(5, TeamState.encode(3, 3, True))  # l'allié a engagé e2 ce tour
+    w.team = team
+    assert team.engaged and team.focus == 3
+    pl = Planner(w, Profile())
+    assert pl.target_w[3] > pl.target_w[2]
+    assert pl.d.engage(me.cell) == 1.0  # loin de tout, mais le combat est lancé
+    stale = TeamState(turn=6)
+    stale.add(5, TeamState.encode(3, 3, True))
+    assert not stale.engaged and stale.focus is None
+
+
+def test_poison_devalued_on_saturated_target():
+    toxin = make("c:toxin", POISON, cost=5, min_range=1, max_range=7, min_v=25, max_v=35, turns=3)
+    g = open_grid(20, 3)
+    me = leek(1, cell(g, 2, 1), mp=0, magic=100, skills=[toxin])
+    fresh = leek(2, cell(g, 8, 1), life=400, tp=0, mp=0, enemy=True)
+    loaded = leek(3, cell(g, 8, 0), life=400, tp=0, mp=0, enemy=True, poison_load=300.0)
+    plan = Planner(world(g, me, [fresh, loaded]), Profile()).plan()
+    assert [a.target for a in plan.actions if a.kind == "chip"] == [2]
